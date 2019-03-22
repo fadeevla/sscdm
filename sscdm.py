@@ -113,3 +113,6 @@ linear minimization`, 2000.
                 p.data.add_(-group['lr'], d_p)
 
         return loss
+if __name__ == "__main__":
+    print('hi\n')
+    pass
