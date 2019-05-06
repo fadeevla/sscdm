@@ -75,7 +75,17 @@ linear minimization`, 2000.
         super(SGD, self).__setstate__(state)
         for group in self.param_groups:
             group.setdefault('nesterov', False)
-
+    def g_k(self, p):
+        return p.grad.data
+    def n_k(self, p):
+        return -gradient_gk(p)/p.L2.data
+    def d_k(self,p):
+        return nk(p)
+    def sigma_k(self,p):
+        return lr*f_gk.L2
+    def lambda_k_1(self):
+        return 0
+   
     def step(self, closure=None):
         """Performs a single optimization step.
         Arguments:
@@ -84,7 +94,9 @@ linear minimization`, 2000.
         """
         loss = None
         if closure is not None:
-            loss = closure()
+            loss = closure() #only placeholder todo: continue
+
+        temp_step = sigma_k*d_n+lambda_k_1*d_k_1
 
         for group in self.param_groups:
             weight_decay = group['weight_decay']
