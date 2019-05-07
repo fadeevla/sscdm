@@ -1,10 +1,10 @@
 import math
 import torch
 from torch.optim.optimizer import Optimizer, required
+from torch.optim import SGD
 
 class SSCDM(Optimizer):
-    r"""Implements SSCDM algorithm.
-    It has been proposed by Manevich, Boudinov in `An efficient conjugate directions method_ without
+    r"""Implements SSCDM algorithm proposed by Manevich, Boudinov `An efficient conjugate directions method_ without
 linear minimization`, 2000.
     Arguments (todo: update):
         params (iterable): iterable of parameters to optimize or dicts defining
@@ -34,7 +34,7 @@ linear minimization`, 2000.
         dampening (float, optional): dampening for momentum (default: 0)
         nesterov (bool, optional): enables Nesterov momentum (default: False)
     Example:
-        >>> optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+        >>> optimizer = torch.optim.SSCDM(model.parameters(), lr=0.1, momentum=0.9)
         >>> optimizer.zero_grad()
         >>> loss_fn(model(input), target).backward()
         >>> optimizer.step()
@@ -69,10 +69,10 @@ linear minimization`, 2000.
                         weight_decay=weight_decay, nesterov=nesterov)
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
-        super(SGD, self).__init__(params, defaults)
+        super(SSCDM, self).__init__(params, defaults)
 
     def __setstate__(self, state):
-        super(SGD, self).__setstate__(state)
+        super(SSCDM, self).__setstate__(state)
         for group in self.param_groups:
             group.setdefault('nesterov', False)
     def g_k(self, p):
@@ -103,11 +103,16 @@ linear minimization`, 2000.
             momentum = group['momentum']
             dampening = group['dampening']
             nesterov = group['nesterov']
-
+            print(group['params'])
             for p in group['params']:
                 if p.grad is None:
                     continue
                 d_p = p.grad.data
+                x1 = g = d_p
+                print(f'p.shape={p.shape}')
+                for k in p.data:
+                    print(f'k={k}')
+
                 if weight_decay != 0:
                     d_p.add_(weight_decay, p.data)
                 if momentum != 0:
