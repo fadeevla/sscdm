@@ -8,13 +8,9 @@ class SSCDM(Optimizer):
 linear minimization`, 2000.
     Arguments (todo: update):
         params (iterable): iterable of parameters to optimize or dicts defining
-            parameter groups
+            parameter groups        
+        cd_max_steps (integer): number of conjugate directions, if set to 1 SSCDM is simplified to gradient descent method
         lr (float, optional): learning rate (default: 1e-3)
-        betas (Tuple[float, float], optional): coefficients used for computing
-            running averages of gradient and its square (default: (0.9, 0.999))
-        eps (float, optional): term added to the denominator to improve
-            numerical stability (default: 1e-8)
-        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
         
     .. _An efficient conjugate directions method\: Manevich, A. I., & Boudinov, E. (2000). 
     An efficient conjugate directions method without linear minimization. 
@@ -22,53 +18,22 @@ linear minimization`, 2000.
     Accelerators, Spectrometers, Detectors and Associated Equipment, 
     455(3), 698-705.
 
-    derived from pytorch implementation of stochastic gradient descent (optionally with momentum).
-    Nesterov momentum is based on the formula from
-    `On the importance of initialization and momentum in deep learning`__.
-    Args:
-        params (iterable): iterable of parameters to optimize or dicts defining
-            parameter groups
-        lr (float): learning rate
-        momentum (float, optional): momentum factor (default: 0)
-        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
-        dampening (float, optional): dampening for momentum (default: 0)
-        nesterov (bool, optional): enables Nesterov momentum (default: False)
     Example:
-        >>> optimizer = torch.optim.SSCDM(model.parameters(), lr=0.1, momentum=0.9)
+        >>> optimizer = torch.optim.SSCDM(model.parameters(), cd_max_steps=1)
         >>> optimizer.zero_grad()
         >>> loss_fn(model(input), target).backward()
         >>> optimizer.step()
-    __ http://www.cs.toronto.edu/%7Ehinton/absps/momentum.pdf
-    .. note::
-        The implementation of SGD with Momentum/Nesterov subtly differs from
-        Sutskever et. al. and implementations in some other frameworks.
-        Considering the specific case of Momentum, the update can be written as
-        .. math::
-                  v = \rho * v + g \\
-                  p = p - lr * v
-        where p, g, v and :math:`\rho` denote the parameters, gradient,
-        velocity, and momentum respectively.
-        This is in contrast to Sutskever et. al. and
-        other frameworks which employ an update of the form
-        .. math::
-             v = \rho * v + lr * g \\
-             p = p - v
-        The Nesterov version is analogously modified.
+ 
     """
 
-    def __init__(self, params, lr=required, momentum=0, dampening=0,
-                 weight_decay=0, nesterov=False):
+    def __init__(self, params, lr=required, cd_max_steps=required):
         if lr is not required and lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
-        if momentum < 0.0:
-            raise ValueError("Invalid momentum value: {}".format(momentum))
-        if weight_decay < 0.0:
-            raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
-
-        defaults = dict(lr=lr, momentum=momentum, dampening=dampening,
-                        weight_decay=weight_decay, nesterov=nesterov)
-        if nesterov and (momentum <= 0 or dampening != 0):
-            raise ValueError("Nesterov momentum requires a momentum and zero dampening")
+        if cd_max_steps is not required and cd_max_steps < 0:
+            raise ValueError("Invalid conjugate directions steps: {}".format(cd_max_steps))
+        
+        defaults = dict(lr=lr, cd_max_steps=cd_max_steps)
+        
         super(SSCDM, self).__init__(params, defaults)
 
     def __setstate__(self, state):
@@ -78,14 +43,14 @@ linear minimization`, 2000.
     def g_k(self, p):
         return p.grad.data
     def n_k(self, p):
-        return -gradient_gk(p)/p.L2.data
+        return -g_k(p)/p.L2.data
     def d_k(self,p):
         return nk(p)
-    def sigma_k(self,p):
-        return lr*f_gk.L2
+    def sigma_k(self,p, _lr):
+        return _lr*g_k.L2
     def lambda_k_1(self):
         return 0
-   
+       
     def step(self, closure=None):
         """Performs a single optimization step.
         Arguments:
@@ -95,14 +60,14 @@ linear minimization`, 2000.
         loss = None
         if closure is not None:
             loss = closure() #only placeholder todo: continue
-
+        if not sigma_k:
+            sigma_k = p.defaults['lr']
+        print(self.param_groups)
         temp_step = sigma_k*d_n+lambda_k_1*d_k_1
 
         for group in self.param_groups:
-            weight_decay = group['weight_decay']
-            momentum = group['momentum']
-            dampening = group['dampening']
-            nesterov = group['nesterov']
+                        
+            cd_max_steps = group['cd_max_steps']
             print(group['params'])
             for p in group['params']:
                 if p.grad is None:

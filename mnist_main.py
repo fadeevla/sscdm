@@ -117,7 +117,7 @@ def main():
     elif args.optimizer=='Adam':
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
     elif args.optimizer=='SSCDM':
-        optimizer = SSCDM(model.parameters(), lr=args.lr)
+        optimizer = SSCDM(model.parameters(), lr=args.lr, cd_max_steps=1)
     print(f'optimizer {optimizer}')
     for epoch in range(1, args.epochs + 1):
         s=time.time()
