@@ -59,25 +59,79 @@ linear minimization`, 2000.
         """
         loss = None
         if closure is not None:
-            loss = closure() #only placeholder todo: continue
-        if not sigma_k:
-            sigma_k = p.defaults['lr']
-        print(self.param_groups)
-        temp_step = sigma_k*d_n+lambda_k_1*d_k_1
+            loss = closure()
 
         for group in self.param_groups:
                         
             cd_max_steps = group['cd_max_steps']
-            print(group['params'])
+            
+            #p is space of particular neural network layer parameters 
             for p in group['params']:
                 if p.grad is None:
                     continue
-                d_p = p.grad.data
-                x1 = g = d_p
-                print(f'p.shape={p.shape}')
-                for k in p.data:
-                    print(f'k={k}')
+                state = self.state[p]
 
+                # State initialization, state is used to save previous step variables e.g. gradient
+                if len(state) == 0:
+                    state['step'] = 0
+
+                if state['step'] == 0:
+                    state['g0'] = p.grad.data.clone()
+                    state['d0'] = state['n0'] = -state['g0'] / state['g0'].norm()
+
+                    #update parameters
+                    p.data.add_(group['lr'], state['d0'])
+                else:
+                    
+                    state['g'+str(state['step'])] = p.grad.data.clone()
+                    #state['gamma_k' + str(state['step']) + '_k' + str(state['step']-1)] = torch.mul(state['g' + str(state['step'])], state['n' + str(state['step']-1)])
+                    #state['n_1'] = torch.addcmul(state['g'+str(state['step'])], state['gamma_k' + str(state['step']) + '_k' + str(state['step']-1)])
+                    
+                    #alpha_numerator = torch.mul(state['g' + str(state['step'])], state['d' + str(state['step']-1)])
+                    g=state['g' + str(state['step'])]
+                    d_prev=state['d' + str(state['step']-1)]
+                    g_prev=state['g' + str(state['step']-1)]
+                    assert g.shape==d_prev.shape==g_prev.shape
+                    s=g.shape
+                    if len(s)==4:
+                        a=s[0]; b=s[1]; c=s[2]; d=s[3]
+                        alpha_numerator = torch.bmm(g.view(a,b,c*d),d_prev.view(a,c*d,b))
+                        alpha_denominator = alpha_numerator - torch.bmm(g_prev.view(a,b,c*d),d_prev.view(a,c*d,b))
+                    if len(s)==2:
+                        a=s[0]; b=s[1]
+                        alpha_numerator = torch.mm(g,d_prev.view(b,a))
+                        alpha_denominator = alpha_numerator - torch.mm(g_prev,d_prev.view(b,a))
+                    if len(s)==1:
+                        a=s[0]
+                        alpha_numerator = torch.dot(g,d_prev)
+                        alpha_denominator = alpha_numerator - torch.dot(g_prev,d_prev)
+
+                    #Alpha_k,k-1
+                    state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)] = -(alpha_numerator / alpha_denominator)*group['lr']
+                    if len(s)==4:
+                        p.data.add_(group['lr'], torch.bmm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)].view(a,b,b), state['d0'].view(a,b,c*d)).view(a,b,c,d))
+                    if len(s)==2:
+                        
+                        p.data.add_(group['lr'], torch.mm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)], state['d0']))
+                        print(p)
+                        assert (p.data!=math.inf).all()
+                        assert (p.data!=math.nan).all()
+                        pass
+                    if len(s)==1:
+                        p.data.add_(group['lr'], state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)]*state['d0'])
+                
+                if state['step'] == cd_max_steps-1:
+                    #print(f"Step #{state['step']} reached max steps of {cd_max_steps}, start over.")
+                    state['step'] = 0
+                    continue
+                
+                state['step'] += 1
+        return loss
+if __name__ == "__main__":
+    print('hi\n')
+    pass
+
+"""
                 if weight_decay != 0:
                     d_p.add_(weight_decay, p.data)
                 if momentum != 0:
@@ -91,10 +145,4 @@ linear minimization`, 2000.
                         d_p = d_p.add(momentum, buf)
                     else:
                         d_p = buf
-
-                p.data.add_(-group['lr'], d_p)
-
-        return loss
-if __name__ == "__main__":
-    print('hi\n')
-    pass
+"""

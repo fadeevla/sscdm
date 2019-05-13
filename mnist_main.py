@@ -8,6 +8,7 @@ from torchvision import datasets, transforms
 from os import chdir
 import sys 
 
+
 sys.path.insert(0, '../sscdm')
 from sscdm import SSCDM
 
@@ -69,6 +70,8 @@ def main():
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
     parser.add_argument('--optimizer', type=str, default='SGD', metavar='N',
                         help='optimizer SGD, Adam (default: SGD)')
+    parser.add_argument('--cd_max_steps', type=int, default=1, metavar='N',
+                        help='max steps for SSCDM (default: 1)')                    
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
@@ -112,12 +115,13 @@ def main():
 
 
     model = Net().to(device)
+    print(model)
     if args.optimizer=='SGD':
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
     elif args.optimizer=='Adam':
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
     elif args.optimizer=='SSCDM':
-        optimizer = SSCDM(model.parameters(), lr=args.lr, cd_max_steps=1)
+        optimizer = SSCDM(model.parameters(), lr=args.lr, cd_max_steps=args.cd_max_steps)
     print(f'optimizer {optimizer}')
     for epoch in range(1, args.epochs + 1):
         s=time.time()

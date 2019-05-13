@@ -11,7 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal"
             "args":[
-                "--optimizer SSCDM"
+                "--optimizer", "SSCDM", "--cd_max_steps", "2"
             ]
         },
         {
