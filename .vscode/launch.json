@@ -11,7 +11,8 @@
             "program": "${file}",
             "console": "integratedTerminal"
             "args":[
-                "--optimizer", "SSCDM", "--cd_max_steps", "2"
+                "--optimizer", "SSCDM", "--cd_max_steps", "2",
+                "--batch-size", "64"
             ]
         },
         {

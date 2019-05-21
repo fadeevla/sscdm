@@ -57,6 +57,7 @@ linear minimization`, 2000.
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
+        
         loss = None
         if closure is not None:
             loss = closure()
@@ -67,6 +68,7 @@ linear minimization`, 2000.
             
             #p is space of particular neural network layer parameters 
             for p in group['params']:
+                print(f"p.data.size()={p.data.size()}")
                 if p.grad is None:
                     continue
                 state = self.state[p]
@@ -107,22 +109,48 @@ linear minimization`, 2000.
                         alpha_denominator = alpha_numerator - torch.dot(g_prev,d_prev)
 
                     #Alpha_k,k-1
-                    state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)] = -(alpha_numerator / alpha_denominator)*group['lr']
+                    state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)] = -(torch.div(alpha_numerator, alpha_denominator))*group['lr']
+                    #fix nan values in tensor
+                    state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)][torch.isnan(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)])] = 0
+                    #print('g.shape=',s)
+                    #print('step=', state['step'])
+                    #print('|alpha| =', torch.norm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)]))
+                
                     if len(s)==4:
+                        assert (p.data==p.data).all(), f'before p.data.size={p.data.size()}'
                         p.data.add_(group['lr'], torch.bmm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)].view(a,b,b), state['d0'].view(a,b,c*d)).view(a,b,c,d))
+                        assert (p.data==p.data).all(), 'after'
+                        #print('len(s)=',len(s), ' pdelta=',torch.norm(torch.bmm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)].view(a,b,b), state['d0'].view(a,b,c*d)).view(a,b,c,d)))
+                        #print('|alpha|=',torch.norm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)]))
+                        #print('alpha_numerator=',torch.norm(alpha_numerator))
+                        #print('alpha_denominator=',torch.norm(alpha_denominator))
+                        #print('alphanum_size=',alpha_numerator.size())
                     if len(s)==2:
                         
                         p.data.add_(group['lr'], torch.mm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)], state['d0']))
-                        print(p)
-                        assert (p.data!=math.inf).all()
-                        assert (p.data!=math.nan).all()
+                        #print('len(s)=',len(s), ' pdelta=',torch.norm(torch.mm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)], state['d0'])))
+                        #print('|alpha|=',torch.norm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)]))
+                        #alpha turns to nan
+                        #print('|alpha_numerator*delta|=',torch.norm(alpha_numerator*group['lr']))
+                        #print('|alpha_denominator|=',torch.norm(alpha_denominator))
+                        #print('alphanum_size=',alpha_numerator.size())
+                        #print('alphadenom_size=',alpha_denominator.size())
+                        #print('|alpha_dup|=',torch.norm(torch.div(alpha_numerator*group['lr'],alpha_denominator)))
+                        #print('detect_nan=',torch.div(alpha_numerator*group['lr'],alpha_denominator)!=torch.div(alpha_numerator*group['lr'],alpha_denominator))
+                        #print(p)
+                        #assert (alpha_denominator==torch.div(alpha_numerator*group['lr'],alpha_denominator)).any()
+                        assert (p.data==p.data).all()
+                        #assert (p.data==math.nan).all()
                         pass
                     if len(s)==1:
+                        #print('alphs_size=',state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)].size())
+                        #print('d0=',state['d0'].size())
                         p.data.add_(group['lr'], state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)]*state['d0'])
-                
+                    assert (p.data==p.data).all(), f"len(s)={len(s)}"
                 if state['step'] == cd_max_steps-1:
                     #print(f"Step #{state['step']} reached max steps of {cd_max_steps}, start over.")
                     state['step'] = 0
+                    print("state['step'] = 0")
                     continue
                 
                 state['step'] += 1
