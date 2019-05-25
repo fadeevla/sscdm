@@ -79,10 +79,12 @@ linear minimization`, 2000.
 
                 if state['step'] == 0:
                     state['g0'] = p.grad.data.clone()
+                    assert (state['g0']==state['g0']).all(), f"p.grad.data={p.grad.data}\np.data={p.data}"
                     state['d0'] = state['n0'] = -state['g0'] / state['g0'].norm()
 
                     #update parameters
                     p.data.add_(group['lr'], state['d0'])
+                    assert (p.data==p.data).all(), f"after p.data.size={p.data.size()}, state['step']={state['step']} \nstate['d0']={state['d0']}\nstate['g0']={state['g0']}"
                 else:
                     
                     state['g'+str(state['step'])] = p.grad.data.clone()
@@ -117,7 +119,7 @@ linear minimization`, 2000.
                     #print('|alpha| =', torch.norm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)]))
                 
                     if len(s)==4:
-                        assert (p.data==p.data).all(), f'before p.data.size={p.data.size()}'
+                        assert (p.data==p.data).all(), f"before p.data.size={p.data.size()}, state['step']={state['step']} \np.data={p.data}"
                         p.data.add_(group['lr'], torch.bmm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)].view(a,b,b), state['d0'].view(a,b,c*d)).view(a,b,c,d))
                         assert (p.data==p.data).all(), 'after'
                         #print('len(s)=',len(s), ' pdelta=',torch.norm(torch.bmm(state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)].view(a,b,b), state['d0'].view(a,b,c*d)).view(a,b,c,d)))
@@ -146,12 +148,12 @@ linear minimization`, 2000.
                         #print('alphs_size=',state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)].size())
                         #print('d0=',state['d0'].size())
                         p.data.add_(group['lr'], state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)]*state['d0'])
-                    assert (p.data==p.data).all(), f"len(s)={len(s)}"
+                assert (p.data==p.data).all(), f"after p.data.size={p.data.size()}, state['step']={state['step']} \np.data={p.data}"
                 if state['step'] == cd_max_steps-1:
                     #print(f"Step #{state['step']} reached max steps of {cd_max_steps}, start over.")
-                    state['step'] = 0
+                    
                     self.state[p] = {}
-                    print("state['step'] = 0")
+                    print("parameter's state set to {}")
                     continue
                 
                 state['step'] += 1
