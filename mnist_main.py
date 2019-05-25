@@ -40,6 +40,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
         optimizer.zero_grad()
         output = model(data)
         loss = F.nll_loss(output, target)
+        #loss=F.mse_loss(output,target)
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:

@@ -150,6 +150,7 @@ linear minimization`, 2000.
                 if state['step'] == cd_max_steps-1:
                     #print(f"Step #{state['step']} reached max steps of {cd_max_steps}, start over.")
                     state['step'] = 0
+                    self.state[p] = {}
                     print("state['step'] = 0")
                     continue
                 
