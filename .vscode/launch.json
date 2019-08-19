@@ -12,7 +12,8 @@
             "console": "integratedTerminal"
             "args":[
                 "--optimizer", "SSCDM", "--cd_max_steps", "2",
-                "--batch-size", "64"
+                "--batch-size", "600", "--lr", "0.1",
+                "--epochs", "1"
             ]
         },
         {

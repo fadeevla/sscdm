@@ -2,6 +2,10 @@ import math
 import torch
 from torch.optim.optimizer import Optimizer, required
 from torch.optim import SGD
+from cd_optim import cd_optim
+from torchvision import datasets, transforms
+
+
 
 class SSCDM(Optimizer):
     r"""Implements SSCDM algorithm proposed by Manevich, Boudinov `An efficient conjugate directions method_ without
@@ -33,6 +37,10 @@ linear minimization`, 2000.
             raise ValueError("Invalid conjugate directions steps: {}".format(cd_max_steps))
         
         defaults = dict(lr=lr, cd_max_steps=cd_max_steps)
+        self.all_layers_shapes = {}
+
+        self.cd_optim_obj = cd_optim(method = 'gd', lr = lr)
+        self.last_step = None
         
         super(SSCDM, self).__init__(params, defaults)
 
@@ -40,17 +48,81 @@ linear minimization`, 2000.
         super(SSCDM, self).__setstate__(state)
         for group in self.param_groups:
             group.setdefault('nesterov', False)
-    def g_k(self, p):
-        return p.grad.data
-    def n_k(self, p):
-        return -g_k(p)/p.L2.data
-    def d_k(self,p):
-        return nk(p)
-    def sigma_k(self,p, _lr):
-        return _lr*g_k.L2
-    def lambda_k_1(self):
+    
+    def get_layer_gradient(self, layer):
+        """Get gradient of a DNN layer
+        Arguments:
+            layer (,mandatory): a DNN layer (parameters' group)
+        Returns:
+            torch.Tensor (size of given layer/group parameters)
+        """
+        grad = None
+        grad = layer.grad.data
+        shape = grad.shape
+        flatten_grad = grad.reshape(-1)
+
+        return shape, flatten_grad
+    
+    def get_global_gradient(self, dnn):
+        """Get gradients of each DNN layer and append vector
+        Arguments:
+            whole DNN including all layers (self.param_groups[0]['params'])
+        Returns:
+            torch.Tensor(number of layers)
+        """
+        grad = torch.Tensor(0)
+        if self.all_layers_shapes == {}:
+            
+            for i,layer in enumerate(dnn):
+                self.all_layers_shapes[i] = layer.shape
+        for i, layer in enumerate(dnn):
+            g = self.get_layer_gradient(layer)
+            grad = torch.cat([grad,g[1]])
+        
+            
+        return grad
+
+    def vector2vlayers(self, vector):
+        """Unpack global vector into layers vectors
+        Arguments:
+            vector (tuple): 
+        Return:
+            dict of tuples, indexed by number of DNN layer
+        """
+        vlayers = {}
+        start = 0
+        end = 0
+        for i, lshape in enumerate(self.all_layers_shapes.values()):
+            size = torch.prod(torch.Tensor(list(lshape))) #todo: consider replacing conversion to list
+            end += int(size)
+            vlayers[i] = vector[start:end].reshape(lshape)
+            start = end
+
+        return vlayers
+    def test_sscdm(self):
+        grad = self.get_global_gradient(self.param_groups[0]['params'])
+        temp = self.vector2vlayers(grad)
+
         return 0
-       
+    def step_global(self, closure = None):
+        """Performs global optimization step across all layers
+        Arguments:
+            closure (callable, optional): A closure that reevaluates the model
+                and returns the loss.
+        """
+        loss = None
+        if closure is not None:
+            loss = closure()
+        for group in self.param_groups:
+            grads = self.get_global_gradient(group['params'])
+            deltas = self.cd_optim_obj.get_step(grads, method='adam')
+            self.last_step = deltas
+            deltas_tensor = self.vector2vlayers(deltas)
+            for i,p in enumerate(group['params']):
+                p = p.add(deltas_tensor[i])
+                #x.add_(1, deltas_tensor[i])
+            
+        return deltas_tensor
     def step(self, closure=None):
         """Performs a single optimization step.
         Arguments:
@@ -65,7 +137,7 @@ linear minimization`, 2000.
         for group in self.param_groups:
                         
             cd_max_steps = group['cd_max_steps']
-            
+            self.step_global()
             #p is space of particular neural network layer parameters 
             for p in group['params']:
                 print(f"p.data.size()={p.data.size()}")
@@ -119,8 +191,7 @@ linear minimization`, 2000.
                         abc = torch.dot(g_prev,d_prev)
                         alpha_denominator = alpha_numerator - abc
                         c = step_size_prev / alpha_denumerator
-                    if c<0:
-                        print('consider correcting concave c')
+           
                     #Alpha_k,k-1
                     state['alpha_k' + str(state['step']) + '_k' + str(state['step']-1)] = -(torch.div(alpha_numerator, alpha_denominator))*step_size_prev
                     #fix nan values in tensor, consider removing comment of below line
@@ -175,8 +246,54 @@ linear minimization`, 2000.
                 
                 state['step'] += 1
         return loss
+
+    def get_mini_batch(
+        dataset = datasets.MNIST('../data', train=True, download=True,
+                       transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.1307,), (0.3081,))
+                       ])), 
+        is_fulldataset=1, batch_size=None, current_dataset = None, action=0):
+        """
+        Arguments:
+            dataset - (Dataloader with parameter batch_size equal to full dataset) total dataset
+            is_fulldataset - (boolean)
+            batch_size - (int) size of batch
+            current_dataset - iterator 
+            action - 0,1,2 (0-return current dataset, 1-full update/create of dataset, 2-extend dataset)
+        """
+        #_, (data, target) = [dataset][0]
+        #data, target = data.to(device), target.to(device)
+        if action == 0:
+            return current_dataset
+        if action == 1:
+            #(sampler) = SequentialSampler
+            data_loader = torch.utils.data.DataLoader(
+                dataset,
+                batch_size = args.batch_size, shuffle=True, **kwargs)
+            test_loader = torch.utils.data.DataLoader(
+                dataset,
+                batch_size = args.test_batch_size, shuffle=True, **kwargs)
+
+"""
+    train_loader = torch.utils.data.DataLoader(
+        datasets.MNIST('../data', train=True, download=True,
+                       transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.1307,), (0.3081,))
+                       ])),
+        batch_size=args.batch_size, shuffle=True, **kwargs)
+    test_loader = torch.utils.data.DataLoader(
+        datasets.MNIST('../data', train=False, transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.1307,), (0.3081,))
+                       ])),
+        batch_size=args.test_batch_size, shuffle=True, **kwargs)
+"""
+
 if __name__ == "__main__":
     print('hi\n')
+    
     pass
 
 """

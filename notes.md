@@ -142,3 +142,12 @@ parameter update
         step_size = group['lr'] * math.sqrt(bias_correction2) / bias_correction1
 
         p.data.addcdiv_(-step_size, exp_avg, denom)
+data.size=torch.Size([64, 1, 28, 28])
+p.data.size()=torch.Size([20, 1, 5, 5])
+p.data.size()=torch.Size([20])
+p.data.size()=torch.Size([50, 20, 5, 5])
+p.data.size()=torch.Size([50])
+p.data.size()=torch.Size([500, 800])
+p.data.size()=torch.Size([500])
+p.data.size()=torch.Size([10, 500])
+p.data.size()=torch.Size([10])
