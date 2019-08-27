@@ -74,7 +74,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
     
     train_loader_new = my_dataloader(
         dataloader = train_loader, 
-        sample_indices = [0,1,2,4,5,6])
+        sample_indices = [i for i in range(args.initial_batch_size)])
     data, target = train_loader_new.get_mini_batch()
     target = target.long()
     #batch_idx, (data, target) = [train_loader][0]
@@ -109,7 +109,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
         
         eps = float(abs((prev_loss - loss) / prev_loss))
         current_sample_size = len(train_loader_new.sample_indices)
-        if eps < 0.01 and current_sample_size < max_sample_size:
+        if False and eps < 0.01 and current_sample_size < max_sample_size:
             train_loader_new.extend_sample_indices(current_sample_size*2)
             output = model(data)
             prev_loss = loss
@@ -117,7 +117,8 @@ def train(args, model, device, train_loader, optimizer, epoch):
         if eps < 0.0001 and current_sample_size >= max_sample_size:
             train_run_flag = False
         loss.backward()
-        print(f'After step_global:\n\tloss={loss}\ngrad_norm={grad_norm}\nlen(sample_indices)={len(train_loader_new.sample_indices)}\neps={eps}')
+        grad_norm = [layer.grad.norm() for layer in optimizer.param_groups[0]['params']]
+        print(f'After step_global:\n\tloss={loss}\ngrad_norm={grad_norm}\nlen(sample_indices)={len(train_loader_new.sample_indices)}\neps={eps}\nlast_step={optimizer.last_step}')
 
 
     #if batch_idx % args.log_interval == 0:
@@ -169,10 +170,15 @@ def main():
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
     parser.add_argument('--optimizer', type=str, default='SGD', metavar='N',
                         help='optimizer SGD, Adam (default: SGD)')
+    parser.add_argument('--method', type=str, default='cd', metavar='N',
+                        help='optimizer method, [\'gd\',\'adam\',\'sscdm\',\'cdwm\',\'cd\'] (default: cd)')
     parser.add_argument('--cd_max_steps', type=int, default=1, metavar='N',
                         help='max steps for SSCDM (default: 1)')                    
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
+    parser.add_argument("--initial_batch-size", type=int, default=64, metavar='N',
+                        help='initial input batch size for training (default: 64)')
+                        
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=10, metavar='N',
@@ -221,7 +227,7 @@ def main():
     elif args.optimizer=='Adam':
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
     elif args.optimizer=='SSCDM':
-        optimizer = SSCDM(model.parameters(), lr=args.lr, cd_max_steps=args.cd_max_steps)
+        optimizer = SSCDM(model.parameters(), lr=args.lr, cd_max_steps=args.cd_max_steps, method = args.method)
     print(f'optimizer {optimizer}')
     for epoch in range(1, args.epochs + 1):
         s=time.time()

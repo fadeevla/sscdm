@@ -30,7 +30,7 @@ linear minimization`, 2000.
  
     """
 
-    def __init__(self, params, lr=required, cd_max_steps=required):
+    def __init__(self, params, lr=required, cd_max_steps=required, method="cd"):
         if lr is not required and lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if cd_max_steps is not required and cd_max_steps < 0:
@@ -39,8 +39,9 @@ linear minimization`, 2000.
         defaults = dict(lr=lr, cd_max_steps=cd_max_steps)
         self.all_layers_shapes = {}
 
-        self.cd_optim_obj = cd_optim(method = 'gd', lr = lr)
+        self.cd_optim_obj = cd_optim(method = method, lr = lr)
         self.last_step = None
+        self.method = method
         
         super(SSCDM, self).__init__(params, defaults)
 
@@ -115,7 +116,7 @@ linear minimization`, 2000.
             loss = closure()
         for group in self.param_groups:
             grads = self.get_global_gradient(group['params'])
-            deltas = self.cd_optim_obj.get_step(grads, method='adam')
+            deltas = self.cd_optim_obj.get_step(grads, method=self.method)
             self.last_step = deltas
             deltas_tensor = self.vector2vlayers(deltas)
             for i,p in enumerate(group['params']):
